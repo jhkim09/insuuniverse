@@ -2,10 +2,14 @@ const express = require('express');
 const path = require('path');
 const SimpleInsuniverseScraper = require('./simple-scraper');
 const MakeWebhookIntegration = require('./make-webhook');
+const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// 로컬 서버 URL 설정
+const LOCAL_SCRAPER_URL = process.env.LOCAL_SCRAPER_URL || 'https://test-project-jk4z.onrender.com';
 
 // 미들웨어 설정
 app.use(express.json());
@@ -199,41 +203,89 @@ app.get('/health', (req, res) => {
 async function collectCustomerData(jobId) {
     const job = jobQueue.get(jobId);
     if (!job) return;
-    
+
     try {
         console.log(`\n[작업 ${jobId}] 데이터 수집 시작: ${job.customerName} (${job.customerPhone})`);
-        
+
         // 작업 상태 업데이트
         job.status = 'running';
         job.startedAt = new Date();
         jobQueue.set(jobId, job);
-        
-        const scraper = new SimpleInsuniverseScraper();
-        await scraper.init(); // API 모드로 초기화
 
-        // 1. 로그인 - 사용자가 입력한 정보 사용
-        const loginSuccess = await scraper.login(job.insuId, job.insuPassword);
-        
-        if (!loginSuccess) {
-            throw new Error('Insuniverse 로그인 실패');
+        let analysisData = null;
+        let customerResult = null;
+
+        // 먼저 로컬 서버 시도
+        try {
+            console.log(`[작업 ${jobId}] 로컬 스크래핑 서버 확인 중...`);
+            const healthCheck = await axios.get(`${LOCAL_SCRAPER_URL}/health`, { timeout: 2000 });
+
+            if (healthCheck.data.status === 'healthy') {
+                console.log(`[작업 ${jobId}] 로컬 서버 사용 (실제 데이터)`);
+
+                // 로컬 서버에 스크래핑 요청
+                const scrapeResponse = await axios.post(`${LOCAL_SCRAPER_URL}/scrape`, {
+                    customerName: job.customerName,
+                    customerPhone: job.customerPhone,
+                    insuId: job.insuId,
+                    insuPassword: job.insuPassword
+                });
+
+                const localJobId = scrapeResponse.data.jobId;
+
+                // 로컬 서버 작업 완료 대기
+                let attempts = 0;
+                const maxAttempts = 60; // 최대 5분
+
+                while (attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 5000)); // 5초 대기
+
+                    const statusResponse = await axios.get(`${LOCAL_SCRAPER_URL}/status/${localJobId}`);
+                    const localJob = statusResponse.data.job;
+
+                    if (localJob.status === 'completed') {
+                        customerResult = localJob.result;
+                        analysisData = localJob.result;
+                        analysisData.dataType = 'real';
+                        console.log(`[작업 ${jobId}] 로컬 서버에서 실제 데이터 수집 완료`);
+                        break;
+                    } else if (localJob.status === 'failed') {
+                        throw new Error(`로컬 서버 스크래핑 실패: ${localJob.error}`);
+                    }
+
+                    attempts++;
+                }
+
+                if (!analysisData) {
+                    throw new Error('로컬 서버 작업 시간 초과');
+                }
+            }
+        } catch (localError) {
+            console.log(`[작업 ${jobId}] 로컬 서버 사용 불가: ${localError.message}`);
+            console.log(`[작업 ${jobId}] 기본 API 모드로 전환`);
+
+            // 로컬 서버 실패 시 기존 방식 사용
+            const scraper = new SimpleInsuniverseScraper();
+            await scraper.init();
+
+            const loginSuccess = await scraper.login(job.insuId, job.insuPassword);
+
+            if (!loginSuccess) {
+                throw new Error('Insuniverse 로그인 실패');
+            }
+
+            customerResult = await scraper.searchCustomer(job.customerName, job.customerPhone);
+
+            if (!customerResult) {
+                throw new Error(`고객을 찾을 수 없습니다: ${job.customerName} (${job.customerPhone})`);
+            }
+
+            analysisData = await scraper.collectAllAnalysisData(customerResult.analysisId);
+            analysisData.customer = customerResult.customerInfo;
+            analysisData.dataType = 'mock'; // API 모드는 mock 데이터
+
+            await scraper.close();
         }
-        
-        // 2. 고객 검색 및 분석 ID 찾기 (SimpleInsuniverseScraper 사용)
-        console.log(`[작업 ${jobId}] 고객 검색 중: ${job.customerName}, ${job.customerPhone}`);
-        const customerResult = await scraper.searchCustomer(job.customerName, job.customerPhone);
-        
-        if (!customerResult) {
-            throw new Error(`고객을 찾을 수 없습니다: ${job.customerName} (${job.customerPhone})`);
-        }
-        
-        console.log(`[작업 ${jobId}] 분석 ID 발견: ${customerResult.analysisId}`);
-        
-        // 3. 분석 데이터 수집 (SimpleInsuniverseScraper 사용)
-        console.log(`[작업 ${jobId}] 분석 데이터 수집 중...`);
-        const analysisData = await scraper.collectAllAnalysisData(customerResult.analysisId);
-        
-        // 고객 정보를 분석 데이터에 포함
-        analysisData.customer = customerResult.customerInfo;
         
         // 4. Make.com 웹훅으로 전송
         console.log(`[작업 ${jobId}] 웹훅 URL 확인: ${job.webhookUrl}`);

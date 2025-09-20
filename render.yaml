@@ -5,7 +5,7 @@ services:
     branch: master
     rootDir: insuniverse-automation
     buildCommand: npm install
-    startCommand: node web-form-server-hybrid.js
+    startCommand: node web-form-server.js
     envVars:
       - key: NODE_ENV
         value: production
