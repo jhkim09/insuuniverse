@@ -107,22 +107,35 @@ async function performScraping(jobId, params) {
             throw new Error('Insuniverse 로그인 실패');
         }
 
-        // 고객 검색
-        console.log(`[${jobId}] 고객 검색: ${params.customerName} (${params.customerPhone})`);
-        const searchResult = await scraper.searchCustomer(params.customerName, params.customerPhone);
+        // 분석 리스트 페이지로 이동 및 분석
+        console.log(`[${jobId}] 분석 리스트 페이지 분석 중...`);
+        const analysisInfo = await scraper.analyzeAnalysisListPage();
 
-        if (!searchResult || !searchResult.analysisId) {
-            throw new Error('고객을 찾을 수 없거나 분석 ID가 없습니다');
+        if (!analysisInfo || !analysisInfo.analysisId) {
+            throw new Error('분석 ID를 찾을 수 없습니다');
         }
 
-        console.log(`[${jobId}] 분석 ID: ${searchResult.analysisId}`);
+        console.log(`[${jobId}] 분석 ID: ${analysisInfo.analysisId}`);
 
-        // 분석 데이터 수집
-        console.log(`[${jobId}] 데이터 수집 중...`);
-        const analysisData = await scraper.collectAllAnalysisData(searchResult.analysisId);
+        // 분석 상세 페이지 방문
+        console.log(`[${jobId}] 분석 상세 페이지 방문 중...`);
+        await scraper.visitAnalysisDetail(analysisInfo.analysisId);
+
+        // API 엔드포인트 수집
+        console.log(`[${jobId}] API 엔드포인트 수집 중...`);
+        const apiEndpoints = await scraper.getAnalysisAPIs();
+
+        // 데이터 추출
+        console.log(`[${jobId}] 데이터 추출 중...`);
+        const analysisData = await scraper.extractData(apiEndpoints);
 
         // 고객 정보 추가
-        analysisData.customer = searchResult.customerInfo;
+        analysisData.customer = {
+            name: params.customerName,
+            phone: params.customerPhone,
+            analysisId: analysisInfo.analysisId,
+            ...analysisInfo
+        };
 
         // Make.com 웹훅으로 전송
         const webhookUrl = process.env.MAKE_WEBHOOK_URL;

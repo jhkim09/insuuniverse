@@ -4,20 +4,23 @@
   "description": "Insuniverse 데이터 수집 및 백업 자동화",
   "main": "scraper.js",
   "scripts": {
-    "start": "node scraper.js",
+    "start": "node render-server.js",
+    "scraper": "node scraper.js",
     "schedule": "node scheduler.js",
-    "test": "node api-test.js",
+    "test": "node api-scraper.js",
     "webhook": "node make-webhook.js",
     "server": "node web-form-server.js",
     "local": "node local-scraper-server.js",
-    "local:dev": "nodemon local-scraper-server.js"
+    "local:dev": "nodemon local-scraper-server.js",
+    "render": "node render-server.js"
   },
   "dependencies": {
     "axios": "^1.6.0",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.19.2",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "puppeteer": "^21.11.0"
   },
   "engines": {
     "node": "20.x"
