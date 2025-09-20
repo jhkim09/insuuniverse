@@ -2,7 +2,7 @@
   "name": "insuniverse-automation",
   "version": "1.0.0",
   "description": "Insuniverse 데이터 수집 및 백업 자동화",
-  "main": "scraper.js",
+  "main": "render-server.js",
   "scripts": {
     "start": "node render-server.js",
     "scraper": "node scraper.js",
