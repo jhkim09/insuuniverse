@@ -12,12 +12,8 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: INSUNIVERSE_EMAIL
-        sync: false
-      - key: INSUNIVERSE_PASSWORD
-        sync: false
       - key: MAKE_WEBHOOK_URL
-        sync: false
+        value: https://hook.eu2.make.com/8uhhwoto8v26pqqciyjoc9qybtxkhiih
       - key: DATA_PATH
         value: /var/data
     healthCheckPath: /health
