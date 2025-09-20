@@ -94,6 +94,40 @@ class ApiScraper {
         }
     }
 
+    async getSubscriptionInfo() {
+        try {
+            console.log('구독 정보 조회 중...');
+            const response = await axios.get(
+                `https://api.insuniverse.com/subscribe/${this.memId}`,
+                {
+                    headers: this.headers
+                }
+            );
+            console.log('구독 정보 조회 성공');
+            return response.data;
+        } catch (error) {
+            console.error('구독 정보 조회 실패:', error.message);
+            return null;
+        }
+    }
+
+    async getAlarmInfo() {
+        try {
+            console.log('알람 정보 조회 중...');
+            const response = await axios.get(
+                `https://api.insuniverse.com/alarm?page=1&memId=${this.memId}`,
+                {
+                    headers: this.headers
+                }
+            );
+            console.log('알람 정보 조회 성공');
+            return response.data;
+        } catch (error) {
+            console.error('알람 정보 조회 실패:', error.message);
+            return null;
+        }
+    }
+
     async getAnalysisDetail(oddId) {
         try {
             console.log(`분석 상세 정보 조회 중... (oddId: ${oddId})`);
@@ -104,7 +138,8 @@ class ApiScraper {
                 'car-insurance',
                 'medical',
                 'life-insurance',
-                'general-insurance'
+                'general-insurance',
+                'compensation'  // 보상 찾아줘 데이터
             ];
 
             // aggregate API 타입들
@@ -213,7 +248,11 @@ class ApiScraper {
                     detail = await this.getAnalysisDetail(oddId);
                 }
 
-                // 4. 데이터 정리 및 반환
+                // 4. 추가 정보 가져오기
+                const subscription = await this.getSubscriptionInfo();
+                const alarm = await this.getAlarmInfo();
+
+                // 5. 데이터 정리 및 반환
                 return {
                     memId: this.memId,
                     totalOrders: orderData.totalCnt,
@@ -221,6 +260,8 @@ class ApiScraper {
                     latestOrder: latestOrder,
                     oddId: oddId,
                     analysisDetail: detail,
+                    subscription: subscription,
+                    alarm: alarm,
                     extractedAt: new Date().toISOString()
                 };
             } else {
