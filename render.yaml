@@ -1,10 +1,8 @@
 services:
   - type: web
-    name: insuniverse-automation
-    runtime: node
-    repo: https://github.com/YOUR_USERNAME/YOUR_REPO
-    branch: main
-    rootDir: insuniverse-automation
+    name: insuniverse
+    env: node
+    branch: master
     buildCommand: npm install
     startCommand: node web-form-server.js
     envVars:
