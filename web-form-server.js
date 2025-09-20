@@ -236,15 +236,19 @@ async function collectCustomerData(jobId) {
         analysisData.customer = customerResult.customerInfo;
         
         // 4. Make.com 웹훅으로 전송
+        console.log(`[작업 ${jobId}] 웹훅 URL 확인: ${job.webhookUrl}`);
         if (job.webhookUrl) {
             console.log(`[작업 ${jobId}] Make.com 웹훅 전송 중...`);
             const webhook = new MakeWebhookIntegration(job.webhookUrl);
-            await webhook.sendData(analysisData, {
+            const webhookResult = await webhook.sendData(analysisData, {
                 jobId: jobId,
                 customerName: job.customerName,
                 customerPhone: job.customerPhone,
                 analysisId: customerResult.analysisId
             });
+            console.log(`[작업 ${jobId}] 웹훅 전송 결과:`, webhookResult);
+        } else {
+            console.log(`[작업 ${jobId}] 웹훅 URL이 없어 전송하지 않음`);
         }
         
         // 작업 완료
