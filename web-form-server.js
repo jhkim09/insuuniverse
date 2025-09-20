@@ -85,7 +85,15 @@ app.get('/', (req, res) => {
                        value="${process.env.MAKE_WEBHOOK_URL || ''}"
                        placeholder="https://hook.make.com/your-webhook-url">
             </div>
-            
+
+            <div class="form-group">
+                <label for="localServerUrl">로컬 서버 URL (실제 데이터 수집용)</label>
+                <input type="text" id="localServerUrl" name="localServerUrl"
+                       value="${process.env.LOCAL_SCRAPER_URL || ''}"
+                       placeholder="예: https://xxxx.ngrok-free.app">
+                <small style="color: #666;">ngrok URL 입력 시 실제 데이터 수집, 비워두면 Mock 데이터 사용</small>
+            </div>
+
             <button type="submit">🚀 데이터 수집 시작</button>
         </form>
         
@@ -130,7 +138,7 @@ app.get('/', (req, res) => {
 
 // 데이터 수집 시작 엔드포인트
 app.post('/collect', async (req, res) => {
-    const { insuId, insuPassword, customerName, customerPhone, webhookUrl } = req.body;
+    const { insuId, insuPassword, customerName, customerPhone, webhookUrl, localServerUrl } = req.body;
 
     if (!insuId || !insuPassword || !customerName || !customerPhone) {
         return res.json({ success: false, error: '모든 필수 정보를 입력해주세요.' });
@@ -146,6 +154,7 @@ app.post('/collect', async (req, res) => {
         customerName: customerName,
         customerPhone: customerPhone,
         webhookUrl: webhookUrl || process.env.MAKE_WEBHOOK_URL,
+        localServerUrl: localServerUrl || process.env.LOCAL_SCRAPER_URL,
         status: 'queued',
         createdAt: new Date(),
         startedAt: null,
@@ -153,7 +162,7 @@ app.post('/collect', async (req, res) => {
         result: null,
         error: null
     });
-    
+
     // 비동기로 데이터 수집 시작
     collectCustomerData(jobId);
     
@@ -216,15 +225,17 @@ async function collectCustomerData(jobId) {
         let customerResult = null;
 
         // 먼저 로컬 서버 시도
-        try {
-            console.log(`[작업 ${jobId}] 로컬 스크래핑 서버 확인 중...`);
-            const healthCheck = await axios.get(`${LOCAL_SCRAPER_URL}/health`, { timeout: 2000 });
+        const localUrl = job.localServerUrl || LOCAL_SCRAPER_URL;
+        if (localUrl) {
+            try {
+                console.log(`[작업 ${jobId}] 로컬 스크래핑 서버 확인 중... (${localUrl})`);
+                const healthCheck = await axios.get(`${localUrl}/health`, { timeout: 2000 });
 
             if (healthCheck.data.status === 'healthy') {
                 console.log(`[작업 ${jobId}] 로컬 서버 사용 (실제 데이터)`);
 
                 // 로컬 서버에 스크래핑 요청
-                const scrapeResponse = await axios.post(`${LOCAL_SCRAPER_URL}/scrape`, {
+                const scrapeResponse = await axios.post(`${localUrl}/scrape`, {
                     customerName: job.customerName,
                     customerPhone: job.customerPhone,
                     insuId: job.insuId,
@@ -240,7 +251,7 @@ async function collectCustomerData(jobId) {
                 while (attempts < maxAttempts) {
                     await new Promise(resolve => setTimeout(resolve, 5000)); // 5초 대기
 
-                    const statusResponse = await axios.get(`${LOCAL_SCRAPER_URL}/status/${localJobId}`);
+                    const statusResponse = await axios.get(`${localUrl}/status/${localJobId}`);
                     const localJob = statusResponse.data.job;
 
                     if (localJob.status === 'completed') {
@@ -265,6 +276,31 @@ async function collectCustomerData(jobId) {
             console.log(`[작업 ${jobId}] 기본 API 모드로 전환`);
 
             // 로컬 서버 실패 시 기존 방식 사용
+            const scraper = new SimpleInsuniverseScraper();
+            await scraper.init();
+
+            const loginSuccess = await scraper.login(job.insuId, job.insuPassword);
+
+            if (!loginSuccess) {
+                throw new Error('Insuniverse 로그인 실패');
+            }
+
+            customerResult = await scraper.searchCustomer(job.customerName, job.customerPhone);
+
+            if (!customerResult) {
+                throw new Error(`고객을 찾을 수 없습니다: ${job.customerName} (${job.customerPhone})`);
+            }
+
+            analysisData = await scraper.collectAllAnalysisData(customerResult.analysisId);
+            analysisData.customer = customerResult.customerInfo;
+            analysisData.dataType = 'mock'; // API 모드는 mock 데이터
+
+            await scraper.close();
+        }
+        } else {
+            // localUrl이 없으면 바로 API 모드 사용
+            console.log(`[작업 ${jobId}] 로컬 서버 URL 없음, API 모드 사용`);
+
             const scraper = new SimpleInsuniverseScraper();
             await scraper.init();
 
