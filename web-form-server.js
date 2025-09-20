@@ -209,7 +209,7 @@ async function collectCustomerData(jobId) {
         jobQueue.set(jobId, job);
         
         const scraper = new SimpleInsuniverseScraper();
-        await scraper.init(true); // 헤드리스 모드
+        await scraper.init(); // API 모드로 초기화
 
         // 1. 로그인 - 사용자가 입력한 정보 사용
         const loginSuccess = await scraper.login(job.insuId, job.insuPassword);

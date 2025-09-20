@@ -1,8 +1,9 @@
 services:
   - type: web
     name: insuniverse
-    env: node
+    runtime: node
     branch: master
+    rootDir: insuniverse-automation
     buildCommand: npm install
     startCommand: node web-form-server.js
     envVars:
@@ -14,5 +15,7 @@ services:
         value: https://hook.eu2.make.com/8uhhwoto8v26pqqciyjoc9qybtxkhiih
       - key: DATA_PATH
         value: /var/data
+      - key: NODE_VERSION
+        value: 18
     healthCheckPath: /health
     autoDeploy: false
