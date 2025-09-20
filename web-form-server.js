@@ -296,7 +296,7 @@ async function collectCustomerData(jobId) {
                 jobId: jobId,
                 customerName: job.customerName,
                 customerPhone: job.customerPhone,
-                analysisId: customerResult.analysisId
+                analysisId: customerResult?.analysisId || analysisData?.analysisId || 'unknown'
             });
             console.log(`[작업 ${jobId}] 웹훅 전송 결과:`, webhookResult);
         } else {
@@ -307,17 +307,16 @@ async function collectCustomerData(jobId) {
         job.status = 'completed';
         job.completedAt = new Date();
         job.result = {
-            analysisId: customerResult.analysisId,
+            analysisId: customerResult?.analysisId || analysisData?.analysisId || 'unknown',
             dataCount: Object.keys(analysisData).length,
             webhookSent: !!job.webhookUrl,
-            customerInfo: customerResult.customerInfo
+            customerInfo: customerResult?.customerInfo || analysisData?.customer,
+            dataType: analysisData?.dataType || 'unknown'
         };
         jobQueue.set(jobId, job);
-        
+
         console.log(`[작업 ${jobId}] 데이터 수집 완료!`);
-        
-        await scraper.close();
-        
+
     } catch (error) {
         console.error(`[작업 ${jobId}] 데이터 수집 실패:`, error.message);
         
