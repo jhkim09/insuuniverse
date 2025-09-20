@@ -8,3 +8,8 @@ logs/
 dist/
 build/
 .cache/
+
+# 로컬 전용 파일들
+local-scraper/
+local-scraper-server.js
+package-local.json
