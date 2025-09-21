@@ -2,8 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const ApiScraper = require('./api-scraper');
 const MakeWebhookIntegration = require('./make-webhook');
-const EnhancedPreprocessor = require('./enhanced-preprocessor');
-const IntegratedScraperWebhook = require('./integrated-scraper-webhook');
 require('dotenv').config();
 
 const app = express();
@@ -65,41 +63,15 @@ app.post('/api/scrape', async (req, res) => {
             };
         }
 
-        // 통합 전처리 수행
-        const integratedProcessor = new IntegratedScraperWebhook();
-        const preprocessedData = integratedProcessor.preprocessData(data);
-
-        // ANS 기반 전처리 추가
-        const enhancedPreprocessor = new EnhancedPreprocessor();
-        const ansProcessedData = enhancedPreprocessor.preprocessWithANS(data);
-
-        // 두 전처리 결과 병합
-        const finalData = {
-            ...preprocessedData,
-            ...ansProcessedData.ans_summary,
-            ans_diseases: ansProcessedData.diseases_with_ans,
-            total_disease_count: ansProcessedData.diseases_with_ans.length,
-            has_surgery: ansProcessedData.ans_summary.ANS004_surgery_count > 0,
-            has_inpatient: ansProcessedData.ans_summary.ANS003_inpatient_count > 0,
-            has_dental: ansProcessedData.ans_summary.ANS007_dental_count > 0,
-            // 원본 데이터도 포함 (필요시 참조용)
-            _raw: data
-        };
-
-        console.log('📊 ANS 요약:');
-        console.log(`- 통원: ${ansProcessedData.ans_summary.ANS002_outpatient_count}건`);
-        console.log(`- 입원: ${ansProcessedData.ans_summary.ANS003_inpatient_count}건`);
-        console.log(`- 수술: ${ansProcessedData.ans_summary.ANS004_surgery_count}건`);
-
-        // Make.com 웹훅으로 전송 (전처리된 데이터)
+        // Make.com 웹훅으로 전송 (설정되어 있는 경우)
         if (process.env.MAKE_WEBHOOK_URL) {
             try {
                 const webhook = new MakeWebhookIntegration(process.env.MAKE_WEBHOOK_URL);
-                await webhook.sendData(finalData, {
-                    source: 'api-scraper-preprocessed',
+                await webhook.sendData(data, {
+                    source: 'api-scraper',
                     timestamp: new Date().toISOString()
                 });
-                console.log('웹훅 전송 성공 (전처리 데이터 포함)');
+                console.log('웹훅 전송 성공');
             } catch (webhookError) {
                 console.error('웹훅 전송 실패:', webhookError.message);
             }
@@ -107,7 +79,7 @@ app.post('/api/scrape', async (req, res) => {
 
         res.json({
             success: true,
-            data: finalData
+            data: data
         });
 
     } catch (error) {
