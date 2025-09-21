@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const ApiScraper = require('./api-scraper');
 const MakeWebhookIntegration = require('./make-webhook');
+const EnhancedPreprocessor = require('./enhanced-preprocessor');
+const IntegratedScraperWebhook = require('./integrated-scraper-webhook');
 require('dotenv').config();
 
 const app = express();
@@ -63,82 +65,31 @@ app.post('/api/scrape', async (req, res) => {
             };
         }
 
-        // 간단한 ANS 요약 계산
-        const ansSummary = {
-            ANS002_outpatient_count: 0,
-            ANS003_inpatient_count: 0,
-            ANS004_surgery_count: 0,
-            ANS007_dental_count: 0
-        };
+        // 통합 전처리 수행
+        const integratedProcessor = new IntegratedScraperWebhook();
+        const preprocessedData = integratedProcessor.preprocessData(data);
 
-        // Basic 데이터에서 ANS 카운트
-        if (data.analysisDetail?.basic) {
-            ansSummary.ANS002_outpatient_count = data.analysisDetail.basic.ANS002?.count || 0;
-            ansSummary.ANS003_inpatient_count = data.analysisDetail.basic.ANS003?.count || 0;
-            ansSummary.ANS004_surgery_count = data.analysisDetail.basic.ANS004?.count || 0;
-            ansSummary.ANS007_dental_count = data.analysisDetail.basic.ANS007?.count || 0;
-        }
+        // ANS 기반 전처리 추가
+        const enhancedPreprocessor = new EnhancedPreprocessor();
+        const ansProcessedData = enhancedPreprocessor.preprocessWithANS(data);
 
-        // 기본 전처리 (질병 정보 추출)
-        const diseases = [];
-
-        // Basic ANS002 (통원) 데이터 처리
-        if (data.analysisDetail?.basic?.ANS002?.list) {
-            data.analysisDetail.basic.ANS002.list.forEach(item => {
-                if (item.basic?.asbDiseaseCode) {
-                    diseases.push({
-                        ansType: 'ANS002',
-                        ansCategory: '통원',
-                        code: item.basic.asbDiseaseCode,
-                        name: item.basic.asbDiseaseName || '',
-                        startDate: item.basic.asbTreatStartDate || '',
-                        hospital: item.basic.asbHospitalName || '',
-                        visitDays: item.basic.asbVisitDays || 0,
-                        dosingDays: item.basic.asbDosingDays || 0
-                    });
-                }
-            });
-        }
-
-        // Basic ANS004 (수술) 데이터 처리
-        if (data.analysisDetail?.basic?.ANS004?.list) {
-            data.analysisDetail.basic.ANS004.list.forEach(item => {
-                if (item.basic?.asbDiseaseCode) {
-                    diseases.push({
-                        ansType: 'ANS004',
-                        ansCategory: '수술',
-                        code: item.basic.asbDiseaseCode,
-                        name: item.basic.asbDiseaseName || '',
-                        startDate: item.basic.asbTreatStartDate || '',
-                        hospital: item.basic.asbHospitalName || '',
-                        operation: item.detail?.asdOperation || ''
-                    });
-                }
-            });
-        }
-
+        // 두 전처리 결과 병합
         const finalData = {
-            // 고객 정보
-            customer_name: data.latestOrder?.user?.usrName || '',
-            customer_phone: data.latestOrder?.user?.usrPhone || '',
-            customer_birth: data.latestOrder?.user?.usrBirth || '',
-            analysis_id: data.oddId || 0,
-
-            // ANS 요약
-            ...ansSummary,
-
-            // 질병 정보 (상위 5개)
-            diseases: diseases.slice(0, 5),
-            total_disease_count: diseases.length,
-            has_surgery: ansSummary.ANS004_surgery_count > 0,
-            has_inpatient: ansSummary.ANS003_inpatient_count > 0,
-            has_dental: ansSummary.ANS007_dental_count > 0
+            ...preprocessedData,
+            ...ansProcessedData.ans_summary,
+            ans_diseases: ansProcessedData.diseases_with_ans,
+            total_disease_count: ansProcessedData.diseases_with_ans.length,
+            has_surgery: ansProcessedData.ans_summary.ANS004_surgery_count > 0,
+            has_inpatient: ansProcessedData.ans_summary.ANS003_inpatient_count > 0,
+            has_dental: ansProcessedData.ans_summary.ANS007_dental_count > 0,
+            // 원본 데이터도 포함 (필요시 참조용)
+            _raw: data
         };
 
         console.log('📊 ANS 요약:');
-        console.log(`- 통원: ${ansSummary.ANS002_outpatient_count}건`);
-        console.log(`- 입원: ${ansSummary.ANS003_inpatient_count}건`);
-        console.log(`- 수술: ${ansSummary.ANS004_surgery_count}건`);
+        console.log(`- 통원: ${ansProcessedData.ans_summary.ANS002_outpatient_count}건`);
+        console.log(`- 입원: ${ansProcessedData.ans_summary.ANS003_inpatient_count}건`);
+        console.log(`- 수술: ${ansProcessedData.ans_summary.ANS004_surgery_count}건`);
 
         // Make.com 웹훅으로 전송 (전처리된 데이터)
         if (process.env.MAKE_WEBHOOK_URL) {
