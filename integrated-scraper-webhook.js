@@ -1,5 +1,6 @@
 const axios = require('axios');
 const ApiScraper = require('./api-scraper');
+const EnhancedPreprocessor = require('./enhanced-preprocessor');
 require('dotenv').config();
 
 class IntegratedScraperWebhook {
@@ -22,13 +23,41 @@ class IntegratedScraperWebhook {
                 throw new Error('스크래핑 실패');
             }
 
-            // 2단계: 데이터 전처리 (단순화)
+            // 2단계: 기존 데이터 전처리 (단순화)
             console.log('\n🔄 2단계: 데이터 전처리');
             const simplifiedData = this.preprocessData(rawData);
 
-            // 3단계: Make.com 웹훅으로 전송
+            // 2-2단계: ANS 기반 전처리 추가
+            console.log('\n🔄 2-2단계: ANS 타입별 전처리');
+            const enhancedPreprocessor = new EnhancedPreprocessor();
+            const ansProcessedData = enhancedPreprocessor.preprocessWithANS(rawData);
+
+            // 두 전처리 결과 병합
+            const combinedData = {
+                ...simplifiedData,
+
+                // ANS 요약 정보 추가
+                ...ansProcessedData.ans_summary,
+
+                // ANS별 질병 상세 정보 추가
+                ans_diseases: ansProcessedData.diseases_with_ans,
+
+                // ANS 메타 정보
+                total_disease_count: ansProcessedData.diseases_with_ans.length,
+                has_surgery: ansProcessedData.ans_summary.ANS004_surgery_count > 0,
+                has_inpatient: ansProcessedData.ans_summary.ANS003_inpatient_count > 0,
+                has_dental: ansProcessedData.ans_summary.ANS007_dental_count > 0
+            };
+
+            console.log('\n📊 ANS 요약:');
+            console.log(`- 통원(ANS002): ${ansProcessedData.ans_summary.ANS002_outpatient_count}건`);
+            console.log(`- 입원(ANS003): ${ansProcessedData.ans_summary.ANS003_inpatient_count}건 (${ansProcessedData.ans_summary.ANS003_inpatient_days}일)`);
+            console.log(`- 수술(ANS004): ${ansProcessedData.ans_summary.ANS004_surgery_count}건`);
+            console.log(`- 치과(ANS007): ${ansProcessedData.ans_summary.ANS007_dental_count}건`);
+
+            // 3단계: Make.com 웹훅으로 전송 (병합된 데이터)
             console.log('\n📤 3단계: Make.com 웹훅 전송');
-            const result = await this.sendToMake(simplifiedData);
+            const result = await this.sendToMake(combinedData);
 
             console.log('\n✅ 전체 프로세스 완료!');
             console.log('=' .repeat(50));
@@ -36,8 +65,8 @@ class IntegratedScraperWebhook {
             return {
                 success: true,
                 originalDataSize: JSON.stringify(rawData).length,
-                simplifiedDataSize: JSON.stringify(simplifiedData).length,
-                reductionRate: Math.round((1 - JSON.stringify(simplifiedData).length / JSON.stringify(rawData).length) * 100) + '%',
+                combinedDataSize: JSON.stringify(combinedData).length,
+                reductionRate: Math.round((1 - JSON.stringify(combinedData).length / JSON.stringify(rawData).length) * 100) + '%',
                 webhookResponse: result
             };
 
@@ -71,6 +100,19 @@ class IntegratedScraperWebhook {
             console.error('스크래핑 오류:', error.message);
             return null;
         }
+    }
+
+    // 데이터만 가져오기 (웹훅 전송 없이)
+    async fetchData() {
+        const loginId = process.env.INSUNIVERSE_EMAIL;
+        const password = process.env.INSUNIVERSE_PASSWORD;
+
+        if (!loginId || !password) {
+            console.error('❌ 로그인 정보가 .env 파일에 없습니다');
+            return null;
+        }
+
+        return await this.scrapeData(loginId, password);
     }
 
     // 데이터 전처리 (복잡한 구조 → 단순한 구조)
@@ -395,7 +437,7 @@ async function main() {
     if (result.success) {
         console.log('\n📊 최종 결과:');
         console.log('- 원본 데이터 크기:', result.originalDataSize, 'bytes');
-        console.log('- 단순화 데이터 크기:', result.simplifiedDataSize, 'bytes');
+        console.log('- 병합 데이터 크기:', result.combinedDataSize, 'bytes');
         console.log('- 크기 감소율:', result.reductionRate);
     }
 }
