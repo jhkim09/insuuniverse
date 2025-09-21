@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tasklist)",
+      "Bash(findstr:*)",
+      "Bash(curl:*)",
+      "Bash(ngrok:*)",
+      "Bash(start /B ngrok http 3001)",
+      "Bash(python:*)",
+      "Bash(npm run scraper:*)",
+      "Bash(npm run:*)",
+      "Bash(node:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(wmic process where ProcessId=20232 delete:*)",
+      "Bash(cmd /c:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
