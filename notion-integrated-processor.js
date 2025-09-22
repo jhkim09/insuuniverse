@@ -361,7 +361,9 @@ class IntegratedDataProcessor {
                     }]
                 },
                 "마스터연결": {
-                    relation: [{ id: ansMasterPageId }]
+                    rich_text: [{
+                        text: { content: ansMasterPageId }
+                    }]
                 }
             };
 
@@ -376,7 +378,6 @@ class IntegratedDataProcessor {
     }
 
     buildDetailProperties(ansKey, record, ansMasterPageId, customerInfo) {
-        // 기존 buildDetailProperties 함수 내용과 동일
         const baseProperties = {
             "환자명": {
                 title: [{
@@ -390,8 +391,121 @@ class IntegratedDataProcessor {
             }
         };
 
-        // ANS 타입별 속성 추가 (기존 코드와 동일)
-        return baseProperties;
+        // ANS 타입별 속성 추가
+        switch(ansKey) {
+            case 'ANS002': // 의료이용내역
+                return {
+                    ...baseProperties,
+                    "진료시작일": {
+                        date: record.asbTreatStartDate ? { start: record.asbTreatStartDate } : null
+                    },
+                    "병원명": {
+                        rich_text: [{
+                            text: { content: record.asbHospitalName || '' }
+                        }]
+                    },
+                    "진료과": {
+                        select: { name: record.asbDepartment || '내과' }
+                    },
+                    "진료유형": {
+                        select: { name: record.asbTreatType || '외래' }
+                    },
+                    "질병코드": {
+                        rich_text: [{
+                            text: { content: record.asbDiseaseCode || '' }
+                        }]
+                    },
+                    "질병명": {
+                        rich_text: [{
+                            text: { content: record.asbDiseaseName || '' }
+                        }]
+                    },
+                    "방문일수": {
+                        number: record.asbVisitDays || 0
+                    },
+                    "투약일수": {
+                        number: record.asbDosingDays || 0
+                    },
+                    "보험급여정보": {
+                        rich_text: [{
+                            text: { content: record.asbInDisease || '' }
+                        }]
+                    }
+                };
+
+            case 'ANS004': // 수술입원내역
+                return {
+                    ...baseProperties,
+                    "입원일": {
+                        date: record.asbTreatStartDate ? { start: record.asbTreatStartDate } : null
+                    },
+                    "병원명": {
+                        rich_text: [{
+                            text: { content: record.asbHospitalName || '' }
+                        }]
+                    },
+                    "진료과": {
+                        rich_text: [{
+                            text: { content: record.asbDepartment || '' }
+                        }]
+                    },
+                    "질병코드": {
+                        rich_text: [{
+                            text: { content: record.asbDiseaseCode || '' }
+                        }]
+                    },
+                    "질병명": {
+                        rich_text: [{
+                            text: { content: record.asbDiseaseName || '' }
+                        }]
+                    },
+                    "입원일수": {
+                        number: record.asbHospitalDays || 0
+                    },
+                    "수술명": {
+                        rich_text: [{
+                            text: { content: record.asdOperation || '' }
+                        }]
+                    },
+                    "보험급여정보": {
+                        rich_text: [{
+                            text: { content: record.asbInDisease || '' }
+                        }]
+                    }
+                };
+
+            case 'ANS007': // 치과치료
+                return {
+                    ...baseProperties,
+                    "진료일": {
+                        date: record.asbTreatStartDate ? { start: record.asbTreatStartDate } : null
+                    },
+                    "치과병원명": {
+                        rich_text: [{
+                            text: { content: record.asbHospitalName || '' }
+                        }]
+                    },
+                    "진료유형": {
+                        select: { name: '치주질환' }
+                    },
+                    "질병명": {
+                        rich_text: [{
+                            text: { content: record.asbDiseaseName || '' }
+                        }]
+                    },
+                    "치료내용": {
+                        rich_text: [{
+                            text: { content: record.asbTreatName || '' }
+                        }]
+                    },
+                    "보험적용여부": {
+                        checkbox: record.asbInsuranceYn === 'Y'
+                    }
+                };
+
+            default:
+                return baseProperties;
+        }
     }
 
     getANSTypeName(ansKey) {
