@@ -300,6 +300,9 @@ class IntegratedDataProcessor {
         if (!dbId) return;
 
         try {
+            // 디버깅을 위한 레코드 구조 로그
+            console.log(`    - ${ansKey} 레코드 구조:`, JSON.stringify(record, null, 2).substring(0, 500));
+
             const properties = this.buildDetailProperties(ansKey, record, ansMasterPageId, customerInfo);
 
             await notion.pages.create({
@@ -391,44 +394,66 @@ class IntegratedDataProcessor {
             }
         };
 
+        // basic과 detail 데이터 병합 (detail이 있는 경우)
+        const data = { ...record };
+        if (record.detail) {
+            Object.assign(data, record.detail);
+        }
+
         // ANS 타입별 속성 추가
         switch(ansKey) {
             case 'ANS002': // 의료이용내역
                 return {
                     ...baseProperties,
                     "진료시작일": {
-                        date: record.asbTreatStartDate ? { start: record.asbTreatStartDate } : null
+                        date: data.asbTreatStartDate ? { start: data.asbTreatStartDate } : null
                     },
                     "병원명": {
                         rich_text: [{
-                            text: { content: record.asbHospitalName || '' }
+                            text: { content: data.asbHospitalName || '' }
                         }]
                     },
                     "진료과": {
-                        select: { name: record.asbDepartment || '내과' }
+                        select: { name: data.asbDepartment || '내과' }
                     },
                     "진료유형": {
-                        select: { name: record.asbTreatType || '외래' }
+                        select: { name: data.asbTreatType || '외래' }
                     },
                     "질병코드": {
                         rich_text: [{
-                            text: { content: record.asbDiseaseCode || '' }
+                            text: { content: data.asbDiseaseCode || '' }
                         }]
                     },
                     "질병명": {
                         rich_text: [{
-                            text: { content: record.asbDiseaseName || '' }
+                            text: { content: data.asbDiseaseName || '' }
                         }]
                     },
                     "방문일수": {
-                        number: record.asbVisitDays || 0
+                        number: data.asbVisitDays || 0
+                    },
+                    "수술명": {
+                        rich_text: [{
+                            text: { content: data.asdOperation || data.asbOperationName || '' }
+                        }]
+                    },
+                    "검사유형": {
+                        multi_select: {
+                            options: data.asdCheckType ?
+                                data.asdCheckType.split(',').map(type => ({ name: type.trim() })) : []
+                        }
                     },
                     "투약일수": {
-                        number: record.asbDosingDays || 0
+                        number: data.asbDosingDays || 0
                     },
                     "보험급여정보": {
                         rich_text: [{
-                            text: { content: record.asbInDisease || '' }
+                            text: { content: data.asbInDisease || '' }
+                        }]
+                    },
+                    "주의사항": {
+                        rich_text: [{
+                            text: { content: data.asdNote || data.asbNote || '' }
                         }]
                     }
                 };
@@ -437,39 +462,57 @@ class IntegratedDataProcessor {
                 return {
                     ...baseProperties,
                     "입원일": {
-                        date: record.asbTreatStartDate ? { start: record.asbTreatStartDate } : null
+                        date: data.asbTreatStartDate ? { start: data.asbTreatStartDate } : null
                     },
                     "병원명": {
                         rich_text: [{
-                            text: { content: record.asbHospitalName || '' }
+                            text: { content: data.asbHospitalName || '' }
                         }]
                     },
                     "진료과": {
                         rich_text: [{
-                            text: { content: record.asbDepartment || '' }
+                            text: { content: data.asbDepartment || '' }
                         }]
                     },
                     "질병코드": {
                         rich_text: [{
-                            text: { content: record.asbDiseaseCode || '' }
+                            text: { content: data.asbDiseaseCode || '' }
                         }]
                     },
                     "질병명": {
                         rich_text: [{
-                            text: { content: record.asbDiseaseName || '' }
+                            text: { content: data.asbDiseaseName || '' }
                         }]
                     },
                     "입원일수": {
-                        number: record.asbHospitalDays || 0
+                        number: data.asbHospitalDays || data.asbVisitDays || 0
                     },
                     "수술명": {
                         rich_text: [{
-                            text: { content: record.asdOperation || '' }
+                            text: { content: data.asdOperation || data.asbOperationName || '' }
                         }]
+                    },
+                    "수술코드": {
+                        rich_text: [{
+                            text: { content: data.asdOperationCode || data.asbOperationCode || '' }
+                        }]
+                    },
+                    "검사항목": {
+                        rich_text: [{
+                            text: { content: data.asdCheckType || data.asbCheckName || '' }
+                        }]
+                    },
+                    "검사건수": {
+                        number: data.asdCheckCount || data.asbCheckCount || 0
                     },
                     "보험급여정보": {
                         rich_text: [{
-                            text: { content: record.asbInDisease || '' }
+                            text: { content: data.asbInDisease || '' }
+                        }]
+                    },
+                    "장해가능성": {
+                        rich_text: [{
+                            text: { content: data.asdHandicapPossibility || data.asbHandicap || '' }
                         }]
                     }
                 };
@@ -478,28 +521,36 @@ class IntegratedDataProcessor {
                 return {
                     ...baseProperties,
                     "진료일": {
-                        date: record.asbTreatStartDate ? { start: record.asbTreatStartDate } : null
+                        date: data.asbTreatStartDate ? { start: data.asbTreatStartDate } : null
                     },
                     "치과병원명": {
                         rich_text: [{
-                            text: { content: record.asbHospitalName || '' }
+                            text: { content: data.asbHospitalName || '' }
                         }]
                     },
                     "진료유형": {
-                        select: { name: '치주질환' }
+                        select: { name: data.asbTreatType || '치주질환' }
                     },
                     "질병명": {
                         rich_text: [{
-                            text: { content: record.asbDiseaseName || '' }
+                            text: { content: data.asbDiseaseName || '' }
                         }]
                     },
                     "치료내용": {
                         rich_text: [{
-                            text: { content: record.asbTreatName || '' }
+                            text: { content: data.asdTreatContent || data.asbTreatName || '' }
                         }]
                     },
+                    "치아번호": {
+                        rich_text: [{
+                            text: { content: data.asdToothNumber || data.asbToothNumber || '' }
+                        }]
+                    },
+                    "치료비용": {
+                        number: data.asdTreatCost || data.asbTreatCost || 0
+                    },
                     "보험적용여부": {
-                        checkbox: record.asbInsuranceYn === 'Y'
+                        checkbox: data.asbInsuranceYn === 'Y' || data.asbInDisease === 'Y'
                     }
                 };
 
