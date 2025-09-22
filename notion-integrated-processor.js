@@ -232,8 +232,12 @@ class IntegratedDataProcessor {
                         text: { content: latestOrder.member?.memAgency || '' }
                     }]
                 },
+                // 고객DB연결은 relation 타입이지만 현재 rich_text로 설정되어 있음
+                // 임시로 텍스트로 저장
                 "고객DB연결": {
-                    relation: [{ id: customerPageId }]
+                    rich_text: [{
+                        text: { content: customerPageId }
+                    }]
                 }
             };
 
