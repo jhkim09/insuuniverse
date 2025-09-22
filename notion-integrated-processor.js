@@ -384,7 +384,9 @@ class IntegratedDataProcessor {
                 }]
             },
             "마스터연결": {
-                relation: [{ id: ansMasterPageId }]
+                rich_text: [{
+                    text: { content: ansMasterPageId }
+                }]
             }
         };
 
