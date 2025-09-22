@@ -16,7 +16,12 @@
       "Bash(cmd /c:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git revert:*)",
+      "Read(//c/Users/newsh/test-project/**)",
+      "Bash(dir:*)",
+      "Bash(npm install:*)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []

@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const ApiScraper = require('./api-scraper');
 const MakeWebhookIntegration = require('./make-webhook');
+const IntegratedDataProcessor = require('./notion-integrated-processor');
 require('dotenv').config();
 
 const app = express();
@@ -63,13 +64,26 @@ app.post('/api/scrape', async (req, res) => {
             };
         }
 
+        // Notion 데이터베이스에 저장 (설정되어 있는 경우)
+        let notionResult = null;
+        if (process.env.NOTION_API_KEY && process.env.NOTION_DATABASE_ID) {
+            try {
+                const processor = new IntegratedDataProcessor();
+                notionResult = await processor.processCompleteData({ data });
+                console.log('✅ Notion 저장 성공:', notionResult);
+            } catch (notionError) {
+                console.error('❌ Notion 저장 실패:', notionError.message);
+            }
+        }
+
         // Make.com 웹훅으로 전송 (설정되어 있는 경우)
         if (process.env.MAKE_WEBHOOK_URL) {
             try {
                 const webhook = new MakeWebhookIntegration(process.env.MAKE_WEBHOOK_URL);
                 await webhook.sendData(data, {
                     source: 'api-scraper',
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    notionResult: notionResult
                 });
                 console.log('웹훅 전송 성공');
             } catch (webhookError) {
@@ -79,7 +93,8 @@ app.post('/api/scrape', async (req, res) => {
 
         res.json({
             success: true,
-            data: data
+            data: data,
+            notionResult: notionResult
         });
 
     } catch (error) {
@@ -278,6 +293,9 @@ app.listen(PORT, () => {
     console.log(`📍 주소: http://localhost:${PORT}`);
     console.log(`\n환경 설정:`);
     console.log(`- MAKE_WEBHOOK_URL: ${process.env.MAKE_WEBHOOK_URL ? '✅ 설정됨' : '❌ 미설정'}`);
+    console.log(`- NOTION_API_KEY: ${process.env.NOTION_API_KEY ? '✅ 설정됨' : '❌ 미설정'}`);
+    console.log(`- NOTION_DATABASE_ID: ${process.env.NOTION_DATABASE_ID ? '✅ 설정됨' : '❌ 미설정'}`);
+    console.log(`- NOTION_ANS_MASTER_DB: ${process.env.NOTION_ANS_MASTER_DB ? '✅ 설정됨' : '❌ 미설정'}`);
     console.log(`- PORT: ${PORT}\n`);
 });
 
